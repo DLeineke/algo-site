@@ -1,4 +1,10 @@
 import * as d3 from "d3";
+import {
+  forceCenter,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+} from "d3-force";
 import { useEffect, useRef, useState } from "react";
 import "./Welcome.css";
 
@@ -8,6 +14,53 @@ const Welcome = () => {
 
   useEffect(() => {
     const svg = d3.select(svgRef.current);
+
+    // Set up dimensions
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // Create nodes and links data
+    const nodes = d3.range(100).map(() => ({}));
+    const links = d3.range(200).map(() => ({
+      source: Math.floor(Math.random() * nodes.length),
+      target: Math.floor(Math.random() * nodes.length),
+    }));
+
+    // Create a force simulation
+    forceSimulation(nodes)
+      .force("link", forceLink(links).distance(500))
+      .force("charge", forceManyBody().strength(-200))
+      .force("center", forceCenter(width / 2, height / 2))
+      .on("tick", ticked);
+
+    // Create link elements
+    const link = svg
+      .append("g")
+      .attr("stroke", "#ddd")
+      .attr("stroke-opacity", 0.6)
+      .selectAll("line")
+      .data(links)
+      .join("line");
+
+    // Create node elements
+    const node = svg
+      .append("g")
+      .attr("fill", "#eee")
+      .selectAll("circle")
+      .data(nodes)
+      .join("circle")
+      .attr("r", 5);
+
+    // Update positions on each tick
+    function ticked() {
+      link
+        .attr("x1", (d) => d.source.x)
+        .attr("y1", (d) => d.source.y)
+        .attr("x2", (d) => d.target.x)
+        .attr("y2", (d) => d.target.y);
+
+      node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+    }
 
     // Initial Welcome text
     const welcomeText = svg
