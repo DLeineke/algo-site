@@ -11,6 +11,7 @@ import "./Welcome.css";
 const Welcome = () => {
   const svgRef = useRef();
   const [showInput, setShowInput] = useState(false);
+  const [inputData, setInputData] = useState("");
 
   useEffect(() => {
     const svg = d3.select(svgRef.current);
@@ -110,6 +111,11 @@ const Welcome = () => {
       });
   }, []);
 
+  const handleButtonClick = () => {
+    console.log("Button clicked with data:", inputData);
+    // Add any additional logic for button click here
+  };
+
   return (
     <div className="welcome-container">
       <svg ref={svgRef} width="100%" height="100vh"></svg>
@@ -119,7 +125,11 @@ const Welcome = () => {
             type="text"
             className="data-input"
             placeholder="Enter comma-separated numbers..."
+            onChange={(e) => setInputData(e.target.value)}
           />
+          <button onClick={handleButtonClick} className="submit-button">
+            Submit
+          </button>
         </div>
       )}
     </div>
