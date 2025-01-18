@@ -5,13 +5,14 @@ import {
   forceManyBody,
   forceSimulation,
 } from "d3-force";
+import PropTypes from "prop-types";
 import { useEffect, useRef, useState } from "react";
 import "./Welcome.css";
 
-const Welcome = () => {
+const Welcome = ({ onDataSubmit }) => {
   const svgRef = useRef();
   const [showInput, setShowInput] = useState(false);
-  const [inputData, setInputData] = useState("");
+  const [inputValue, setInputValue] = useState("");
 
   useEffect(() => {
     const svg = d3.select(svgRef.current);
@@ -111,9 +112,10 @@ const Welcome = () => {
       });
   }, []);
 
-  const handleButtonClick = () => {
-    console.log("Button clicked with data:", inputData);
-    // Add any additional logic for button click here
+  const handleKeyPress = (event) => {
+    if (event.key === "Enter") {
+      onDataSubmit(event.target.value);
+    }
   };
 
   return (
@@ -125,15 +127,18 @@ const Welcome = () => {
             type="text"
             className="data-input"
             placeholder="Enter comma-separated numbers..."
-            onChange={(e) => setInputData(e.target.value)}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
           />
-          <button onClick={handleButtonClick} className="submit-button">
-            Submit
-          </button>
         </div>
       )}
     </div>
   );
+};
+
+Welcome.propTypes = {
+  onDataSubmit: PropTypes.func.isRequired,
 };
 
 export default Welcome;
