@@ -40,14 +40,27 @@ const Home = ({ initialNodes }) => {
         };
       });
     } else if (draggedNode !== null) {
-      // Update node position
       setNodes((prevNodes) =>
         prevNodes.map((node) => {
           if (node.id === draggedNode) {
+            // Calculate new position
+            const newX = node.x + e.movementX;
+            const newY = node.y + e.movementY;
+
+            // Node dimensions (including border)
+            const nodeSize = 44; // 40px width/height + 2px border on each side
+            const halfNode = nodeSize / 2;
+
+            // Grid boundaries
+            const maxX = (300 * window.innerWidth) / 100 - halfNode;
+            const maxY = (300 * window.innerHeight) / 100 - halfNode;
+            const minX = halfNode;
+            const minY = halfNode;
+
             return {
               ...node,
-              x: node.x + e.movementX,
-              y: node.y + e.movementY,
+              x: Math.min(maxX, Math.max(minX, newX)),
+              y: Math.min(maxY, Math.max(minY, newY)),
             };
           }
           return node;
