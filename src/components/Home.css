@@ -101,3 +101,87 @@ body,
 .node:hover {
   background-color: #f0f0f0;
 }
+
+.search-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2;
+}
+
+.search-input {
+  padding: 10px 20px;
+  font-size: 18px;
+  border: none;
+  border-radius: 5px;
+  width: 200px;
+  text-align: center;
+}
+
+.search-input:focus {
+  outline: none;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes searchBlink {
+  0%,
+  100% {
+    background-color: white;
+  }
+  50% {
+    background-color: #90ee90;
+  } /* Light green */
+}
+
+@keyframes foundBlink {
+  0%,
+  100% {
+    background-color: white;
+  }
+  50% {
+    background-color: gold;
+  }
+}
+
+.node.searching {
+  animation: searchBlink 1s infinite;
+}
+
+.node.found {
+  animation: foundBlink 1s infinite;
+}
+
+.notification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 15px 30px;
+  border-radius: 5px;
+  font-size: 18px;
+  animation: fadeInOut 2s ease-in-out;
+  z-index: 2;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
