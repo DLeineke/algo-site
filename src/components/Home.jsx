@@ -31,7 +31,13 @@ const Home = ({ initialNodes }) => {
         label: "Linear Search",
         onClick: () => setShowSearchInput(true),
       },
-      { label: "Binary Search", onClick: () => {} },
+      {
+        label: "Binary Search",
+        onClick: () => {
+          setShowSearchInput(true);
+          setIsBinarySearch(true);
+        },
+      },
     ],
     sort: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
@@ -44,6 +50,14 @@ const Home = ({ initialNodes }) => {
       { label: "Post-order", onClick: () => {} },
     ],
   };
+
+  // State for stepping control
+  const [enableStepping, setEnableStepping] = useState(false);
+  const [isAlgorithmRunning, setIsAlgorithmRunning] = useState(false);
+  const [nextStep, setNextStep] = useState(null);
+
+  // State for binary search
+  const [isBinarySearch, setIsBinarySearch] = useState(false);
 
   // Handles mouse down events for both node dragging and grid panning
   const handleMouseDown = (e) => {
@@ -113,23 +127,32 @@ const Home = ({ initialNodes }) => {
         setShowSearchInput(false);
         setSearchValue("");
         setIsSearching(true);
-        startLinearSearch(value);
+        if (isBinarySearch) {
+          startBinarySearch(value);
+          setIsBinarySearch(false);
+        } else {
+          startLinearSearch(value);
+        }
       }
     }
   };
 
   // Performs linear search animation from left to right
   const startLinearSearch = (searchValue) => {
-    setCurrentSearchIndex(0);
+    setCurrentSearchIndex(-1); // Reset to -1 initially
     setFoundNodeId(null);
+    setIsAlgorithmRunning(true);
 
     const sortedNodes = [...nodes].sort((a, b) => a.x - b.x);
 
     const searchStep = (index) => {
       if (index >= sortedNodes.length) {
+        // Search complete, no match found
         setIsSearching(false);
         setCurrentSearchIndex(-1);
         setShowNotification(true);
+        setIsAlgorithmRunning(false);
+        setNextStep(null);
         setTimeout(() => {
           setShowNotification(false);
         }, 2000);
@@ -142,18 +165,106 @@ const Home = ({ initialNodes }) => {
       setCurrentSearchIndex(originalIndex);
 
       if (sortedNodes[index].value === searchValue) {
+        // Match found
         setFoundNodeId(sortedNodes[index].id);
         setIsSearching(false);
         setCurrentSearchIndex(-1);
+        setIsAlgorithmRunning(false);
+        setNextStep(null);
         return;
       }
 
-      setTimeout(() => {
-        searchStep(index + 1);
-      }, 500);
+      if (enableStepping) {
+        // Set up next step function
+        setNextStep(() => () => searchStep(index + 1));
+      } else {
+        // Auto-advance after delay
+        setTimeout(() => {
+          searchStep(index + 1);
+        }, 500);
+      }
     };
 
-    searchStep(0);
+    // Start the search based on stepping mode
+    if (enableStepping) {
+      setNextStep(() => () => searchStep(0));
+    } else {
+      searchStep(0);
+    }
+  };
+
+  // Handle next step button click
+  const handleNextStep = () => {
+    if (nextStep) {
+      nextStep();
+    }
+  };
+
+  const startBinarySearch = (searchValue) => {
+    setCurrentSearchIndex(-1);
+    setFoundNodeId(null);
+    setIsAlgorithmRunning(true);
+
+    // Sort nodes by X position
+    const sortedNodes = [...nodes].sort((a, b) => a.x - b.x);
+
+    const searchStep = (left, right) => {
+      if (left > right) {
+        // Search complete, no match found
+        setIsSearching(false);
+        setCurrentSearchIndex(-1);
+        setShowNotification(true);
+        setIsAlgorithmRunning(false);
+        setNextStep(null);
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 2000);
+        return;
+      }
+
+      const mid = Math.floor((left + right) / 2);
+      const originalIndex = nodes.findIndex(
+        (node) => node.id === sortedNodes[mid].id
+      );
+      setCurrentSearchIndex(originalIndex);
+
+      if (sortedNodes[mid].value === searchValue) {
+        // Match found
+        setFoundNodeId(sortedNodes[mid].id);
+        setIsSearching(false);
+        setCurrentSearchIndex(-1);
+        setIsAlgorithmRunning(false);
+        setNextStep(null);
+        return;
+      }
+
+      if (enableStepping) {
+        // Set up next step function
+        // Always divide spatially, regardless of value
+        if (mid > Math.floor((left + right) / 2)) {
+          setNextStep(() => () => searchStep(left, mid - 1));
+        } else {
+          setNextStep(() => () => searchStep(mid + 1, right));
+        }
+      } else {
+        // Auto-advance after delay
+        setTimeout(() => {
+          // Always divide spatially, regardless of value
+          if (mid > Math.floor((left + right) / 2)) {
+            searchStep(left, mid - 1);
+          } else {
+            searchStep(mid + 1, right);
+          }
+        }, 500);
+      }
+    };
+
+    // Start the search based on stepping mode
+    if (enableStepping) {
+      setNextStep(() => () => searchStep(0, sortedNodes.length - 1));
+    } else {
+      searchStep(0, sortedNodes.length - 1);
+    }
   };
 
   return (
@@ -196,6 +307,11 @@ const Home = ({ initialNodes }) => {
       </div>
       {showSearchInput && (
         <div className="search-overlay">
+          {isBinarySearch && (
+            <div className="search-warning">
+              Note: Binary search may not find all values in an unsorted dataset
+            </div>
+          )}
           <input
             type="number"
             className="search-input"
@@ -207,6 +323,26 @@ const Home = ({ initialNodes }) => {
           />
         </div>
       )}
+      <div className="stepping-control">
+        {isAlgorithmRunning ? (
+          <button
+            className="next-step-button"
+            onClick={handleNextStep}
+            disabled={!nextStep}
+          >
+            Next
+          </button>
+        ) : (
+          <label>
+            <input
+              type="checkbox"
+              checked={enableStepping}
+              onChange={(e) => setEnableStepping(e.target.checked)}
+            />
+            <span>Enable Stepping</span>
+          </label>
+        )}
+      </div>
       {showNotification && <div className="notification">Node not found</div>}
     </div>
   );
