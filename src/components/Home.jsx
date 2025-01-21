@@ -41,7 +41,10 @@ const Home = ({ initialNodes }) => {
     ],
     sort: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
-      { label: "Bubble Sort", onClick: () => {} },
+      {
+        label: "Bubble Sort",
+        onClick: () => startBubbleSort(),
+      },
       { label: "Quick Sort", onClick: () => {} },
     ],
     traverse: [
@@ -58,6 +61,16 @@ const Home = ({ initialNodes }) => {
 
   // State for binary search
   const [isBinarySearch, setIsBinarySearch] = useState(false);
+
+  // State for sorting
+  const [isSorting, setIsSorting] = useState(false);
+
+  // Add new state for sort animations
+  const [comparingIndices, setComparingIndices] = useState([]);
+  const [swappingIndices, setSwappingIndices] = useState([]);
+
+  // Add new state for completion animation
+  const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
 
   // Handles mouse down events for both node dragging and grid panning
   const handleMouseDown = (e) => {
@@ -267,6 +280,157 @@ const Home = ({ initialNodes }) => {
     }
   };
 
+  const startBubbleSort = () => {
+    setIsAlgorithmRunning(true);
+    setIsSorting(true);
+
+    // Calculate center of current view
+    const viewCenterX = -gridOffset.x + window.innerWidth / 2;
+    const viewCenterY = -gridOffset.y + window.innerHeight / 2;
+    const nodeSpacing = 60;
+
+    // First, sort nodes by X position to maintain left-to-right order
+    const orderedNodes = [...nodes].sort((a, b) => a.x - b.x);
+
+    // Then move all nodes to center line while maintaining order
+    const initialNodes = orderedNodes.map((node, i) => ({
+      ...node,
+      x: viewCenterX + (i - orderedNodes.length / 2) * nodeSpacing,
+      y: viewCenterY,
+    }));
+    setNodes(initialNodes);
+
+    // Create a copy for sorting
+    const sortedNodes = [...initialNodes];
+    let swapped = false;
+
+    const compareAndSwap = (index) => {
+      return new Promise((resolve) => {
+        // First show comparison animation
+        setComparingIndices([index, index + 1]);
+        setSwappingIndices([]);
+
+        const doSwap = () => {
+          if (sortedNodes[index].value > sortedNodes[index + 1].value) {
+            // Show swapping animation
+            setComparingIndices([]);
+            setSwappingIndices([index, index + 1]);
+
+            // Swap nodes
+            const temp = sortedNodes[index];
+            sortedNodes[index] = sortedNodes[index + 1];
+            sortedNodes[index + 1] = temp;
+            swapped = true;
+
+            // Update positions with arc animation
+            const updatedNodes = sortedNodes.map((node, i) => {
+              const baseX =
+                viewCenterX + (i - sortedNodes.length / 2) * nodeSpacing;
+              const baseY = viewCenterY;
+
+              if (i === index) {
+                // Left node moves over
+                return {
+                  ...node,
+                  x: baseX,
+                  y: baseY,
+                  arcOffset: 20, // Move up
+                  isSwappingLeft: true,
+                };
+              } else if (i === index + 1) {
+                // Right node moves under
+                return {
+                  ...node,
+                  x: baseX,
+                  y: baseY,
+                  arcOffset: -20, // Move down
+                  isSwappingRight: true,
+                };
+              }
+              return {
+                ...node,
+                x: baseX,
+                y: baseY,
+                arcOffset: 0,
+                isSwappingLeft: false,
+                isSwappingRight: false,
+              };
+            });
+            setNodes(updatedNodes);
+
+            // Reset nodes to center after animation
+            setTimeout(() => {
+              const centeredNodes = sortedNodes.map((node, i) => ({
+                ...node,
+                x: viewCenterX + (i - sortedNodes.length / 2) * nodeSpacing,
+                y: viewCenterY,
+                arcOffset: 0,
+                isSwappingLeft: false,
+                isSwappingRight: false,
+              }));
+              setNodes(centeredNodes);
+            }, 500); // Match the animation duration
+          }
+          resolve();
+        };
+
+        if (enableStepping) {
+          setNextStep(() => () => {
+            doSwap();
+            resolve();
+          });
+        } else {
+          setTimeout(doSwap, 500);
+        }
+      });
+    };
+
+    const sortStep = async (index) => {
+      if (index >= sortedNodes.length - 1) {
+        if (!swapped) {
+          // Sort is complete, show completion animation
+          setComparingIndices([]);
+          setSwappingIndices([]);
+          setShowCompletionAnimation(true);
+
+          // Clear completion animation after delay
+          setTimeout(() => {
+            setShowCompletionAnimation(false);
+            setIsAlgorithmRunning(false);
+            setIsSorting(false);
+            setNextStep(null);
+          }, 2000);
+          return;
+        }
+        // Reset for next pass
+        swapped = false;
+        if (enableStepping) {
+          setNextStep(() => () => sortStep(0));
+        } else {
+          setTimeout(() => sortStep(0), 500);
+        }
+        return;
+      }
+
+      await compareAndSwap(index);
+
+      if (enableStepping) {
+        setNextStep(() => () => sortStep(index + 1));
+      } else {
+        setTimeout(() => sortStep(index + 1), 500);
+      }
+    };
+
+    // Start sorting after initial positioning
+    setTimeout(() => {
+      if (enableStepping) {
+        setNextStep(() => () => sortStep(0));
+      } else {
+        sortStep(0);
+      }
+    }, 1000); // Wait for initial positioning animation
+  };
+
   return (
     <div className="home-container">
       <div className="button-bar">
@@ -295,10 +459,19 @@ const Home = ({ initialNodes }) => {
             key={node.id}
             className={`node ${
               currentSearchIndex === index ? "searching" : ""
-            } ${foundNodeId === node.id ? "found" : ""}`}
+            } ${foundNodeId === node.id ? "found" : ""} ${
+              comparingIndices.includes(index) ? "comparing" : ""
+            } ${swappingIndices.includes(index) ? "swapping" : ""} ${
+              node.isSwappingLeft ? "swapping-left" : ""
+            } ${node.isSwappingRight ? "swapping-right" : ""} ${
+              showCompletionAnimation ? "completion" : ""
+            }`}
             data-id={node.id}
             style={{
-              transform: `translate(${node.x}px, ${node.y}px)`,
+              transform: `translate(${node.x}px, ${node.y}px) translateY(${
+                node.arcOffset || 0
+              }px)`,
+              transition: isSorting ? "transform 0.5s ease-in-out" : "none",
             }}
           >
             {node.value}

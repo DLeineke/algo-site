@@ -96,10 +96,21 @@ body,
   font-size: 16px;
   z-index: 1;
   color: black;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .node:hover {
   background-color: #f0f0f0;
+}
+
+.node.swapping-left {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: right center !important;
+}
+
+.node.swapping-right {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left center !important;
 }
 
 .search-overlay {
@@ -156,6 +167,50 @@ body,
 
 .node.found {
   animation: foundBlink 1s infinite;
+}
+
+.node.comparing {
+  animation: compareBlink 1s infinite;
+}
+
+.node.swapping {
+  animation: swapBlink 1s infinite;
+}
+
+@keyframes compareBlink {
+  0%,
+  100% {
+    background-color: white;
+  }
+  50% {
+    background-color: #90ee90;
+  } /* Light green */
+}
+
+@keyframes swapBlink {
+  0%,
+  100% {
+    background-color: white;
+  }
+  50% {
+    background-color: gold;
+  }
+}
+
+.node.completion {
+  animation: completionBlink 2s;
+}
+
+@keyframes completionBlink {
+  0% {
+    background-color: white;
+  }
+  50% {
+    background-color: gold;
+  }
+  100% {
+    background-color: white;
+  }
 }
 
 .notification {
