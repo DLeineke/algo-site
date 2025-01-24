@@ -21,11 +21,15 @@ const Home = ({ initialNodes }) => {
   const [showBinaryWarning, setShowBinaryWarning] = useState(false);
   const [searchType, setSearchType] = useState("linear");
   const [binaryRange, setBinaryRange] = useState({ left: 0, right: 0 });
+  const [isSorting, setIsSorting] = useState(false);
+  const [bubbleStep, setBubbleStep] = useState({ pass: 0, position: 0 });
+  const [currentOperation, setCurrentOperation] = useState(null);
 
   const handleLinearSearch = () => {
     setSearchValue("");
     setShowSearchInput(true);
     setSearchType("linear");
+    setCurrentOperation("search");
     d3.select(".home-container")
       .append("div")
       .attr("class", "overlay")
@@ -40,6 +44,7 @@ const Home = ({ initialNodes }) => {
     setShowSearchInput(true);
     setShowBinaryWarning(true);
     setSearchType("binary");
+    setCurrentOperation("search");
     d3.select(".home-container")
       .append("div")
       .attr("class", "overlay")
@@ -47,6 +52,219 @@ const Home = ({ initialNodes }) => {
       .transition()
       .duration(300)
       .style("opacity", 0.5);
+  };
+
+  /**
+   * Handles a single step of the bubble sort when stepping is enabled.
+   * Returns true if sorting is complete, false if more steps remain.
+   */
+  const handleBubbleSortStep = async () => {
+    const { pass, position } = bubbleStep;
+    const nodeArray = [...nodes].sort((a, b) => a.x - b.x);
+    const pair = [nodeArray[position], nodeArray[position + 1]];
+
+    // Highlight current pair
+    await Promise.all(
+      pair.map((node) =>
+        d3
+          .select(`[data-id="${node.id}"]`)
+          .transition()
+          .duration(300)
+          .style("background-color", "#4caf50")
+          .end()
+      )
+    );
+
+    // Check if swap needed
+    if (pair[0].value > pair[1].value) {
+      const leftX = pair[0].x;
+      const rightX = pair[1].x;
+
+      // Animate swap
+      await Promise.all([
+        new Promise((resolve) => {
+          d3.select(`[data-id="${pair[0].id}"]`)
+            .transition()
+            .duration(600)
+            .style("transform", `translate(${rightX}px, ${pair[0].y}px)`)
+            .on("end", resolve);
+        }),
+        new Promise((resolve) => {
+          d3.select(`[data-id="${pair[1].id}"]`)
+            .transition()
+            .duration(600)
+            .style("transform", `translate(${leftX}px, ${pair[1].y}px)`)
+            .on("end", resolve);
+        }),
+      ]);
+
+      // Update positions in state
+      setNodes((prev) =>
+        prev.map((n) => {
+          if (n.id === pair[0].id) return { ...n, x: rightX };
+          if (n.id === pair[1].id) return { ...n, x: leftX };
+          return n;
+        })
+      );
+    }
+
+    // Reset highlight
+    await Promise.all(
+      pair.map((node) =>
+        d3
+          .select(`[data-id="${node.id}"]`)
+          .transition()
+          .duration(300)
+          .style("background-color", "white")
+          .end()
+      )
+    );
+
+    // Update step state
+    if (position >= nodeArray.length - 2) {
+      if (pass >= nodeArray.length - 2) {
+        // Sorting complete
+        d3.select(".home-container")
+          .append("div")
+          .attr("class", "search-result")
+          .style("opacity", 0)
+          .text("Sorting complete!")
+          .transition()
+          .duration(300)
+          .style("opacity", 1)
+          .transition()
+          .delay(1400)
+          .duration(300)
+          .style("opacity", 0)
+          .remove();
+
+        setIsSorting(false);
+        setBubbleStep({ pass: 0, position: 0 });
+        setShowNextButton(false);
+        setCurrentOperation(null);
+        return true;
+      }
+      setBubbleStep({ pass: pass + 1, position: 0 });
+    } else {
+      setBubbleStep({ ...bubbleStep, position: position + 1 });
+    }
+    return false;
+  };
+
+  /**
+   * Initializes bubble sort by smoothly animating nodes to centered positions,
+   * then begins the pair-wise comparison and swapping animation.
+   * Continues until no swaps are needed in a full pass.
+   */
+  const handleBubbleSort = async () => {
+    const sortedByX = [...nodes].sort((a, b) => a.x - b.x);
+    const centerY = window.innerHeight / 2;
+    const nodeWidth = 44;
+    const spacing = nodeWidth * 2;
+
+    const totalWidth = (sortedByX.length - 1) * spacing;
+    const startX = (window.innerWidth - totalWidth) / 2;
+
+    // Center all nodes first
+    await Promise.all(
+      sortedByX.map((node, index) => {
+        const newX = startX + index * spacing;
+
+        return new Promise((resolve) => {
+          d3.select(`[data-id="${node.id}"]`)
+            .transition()
+            .duration(1000)
+            .style("transform", `translate(${newX}px, ${centerY}px)`)
+            .on("end", () => {
+              setNodes((prev) =>
+                prev.map((n) =>
+                  n.id === node.id ? { ...n, x: newX, y: centerY } : n
+                )
+              );
+              resolve();
+            });
+        });
+      })
+    );
+
+    setIsSorting(true);
+    setBubbleStep({ pass: 0, position: 0 });
+    setShowNextButton(true);
+    setCurrentOperation("sort");
+
+    if (!enableStepping) {
+      // Run full animation
+      let swapped;
+      do {
+        swapped = false;
+        const nodeArray = [...sortedByX];
+        for (let i = 0; i < nodeArray.length - 1; i++) {
+          const pair = [nodeArray[i], nodeArray[i + 1]];
+
+          // Highlight current pair
+          await Promise.all(
+            pair.map((node) =>
+              d3
+                .select(`[data-id="${node.id}"]`)
+                .transition()
+                .duration(300)
+                .style("background-color", "#4caf50")
+                .end()
+            )
+          );
+
+          if (pair[0].value > pair[1].value) {
+            swapped = true;
+            const leftX = nodeArray[i].x;
+            const rightX = nodeArray[i + 1].x;
+
+            // Animate the swap
+            await Promise.all([
+              new Promise((resolve) => {
+                d3.select(`[data-id="${pair[0].id}"]`)
+                  .transition()
+                  .duration(600)
+                  .style("transform", `translate(${rightX}px, ${pair[0].y}px)`)
+                  .on("end", resolve);
+              }),
+              new Promise((resolve) => {
+                d3.select(`[data-id="${pair[1].id}"]`)
+                  .transition()
+                  .duration(600)
+                  .style("transform", `translate(${leftX}px, ${pair[1].y}px)`)
+                  .on("end", resolve);
+              }),
+            ]);
+
+            // Update positions in state
+            setNodes((prev) =>
+              prev.map((n) => {
+                if (n.id === pair[0].id) return { ...n, x: rightX };
+                if (n.id === pair[1].id) return { ...n, x: leftX };
+                return n;
+              })
+            );
+
+            // Update array for next iteration
+            [nodeArray[i], nodeArray[i + 1]] = [nodeArray[i + 1], nodeArray[i]];
+          }
+
+          // Reset highlight
+          await Promise.all(
+            pair.map((node) =>
+              d3
+                .select(`[data-id="${node.id}"]`)
+                .transition()
+                .duration(300)
+                .style("background-color", "white")
+                .end()
+            )
+          );
+
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+      } while (swapped);
+    }
   };
 
   // Button configurations
@@ -63,7 +281,7 @@ const Home = ({ initialNodes }) => {
     ],
     sort: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
-      { label: "Bubble Sort", onClick: () => {} },
+      { label: "Bubble Sort", onClick: handleBubbleSort },
       { label: "Quick Sort", onClick: () => {} },
     ],
     traverse: [
@@ -167,10 +385,14 @@ const Home = ({ initialNodes }) => {
   };
 
   const handleNextStep = async () => {
-    if (searchType === "binary") {
-      await handleBinarySearchStep();
-    } else {
-      await handleLinearSearchStep();
+    if (currentOperation === "search") {
+      if (searchType === "binary") {
+        await handleBinarySearchStep();
+      } else if (searchType === "linear") {
+        await handleLinearSearchStep();
+      }
+    } else if (currentOperation === "sort" && isSorting) {
+      await handleBubbleSortStep();
     }
   };
 
@@ -535,7 +757,7 @@ const Home = ({ initialNodes }) => {
           <button
             className={`next-button ${!enableStepping ? "disabled" : ""}`}
             onClick={handleNextStep}
-            disabled={!enableStepping || !isSearching}
+            disabled={!enableStepping || (!isSearching && !isSorting)}
           >
             Next
           </button>
