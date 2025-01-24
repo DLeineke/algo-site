@@ -1,24 +1,55 @@
+import * as d3 from "d3";
 import PropTypes from "prop-types";
 import { useState } from "react";
 import "./Home.css";
 
 const Home = ({ initialNodes }) => {
-  // State for grid movement and node dragging
   const [gridOffset, setGridOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [nodes, setNodes] = useState(initialNodes);
   const [draggedNode, setDraggedNode] = useState(null);
-
-  // State for button navigation and search functionality
   const [currentButtons, setCurrentButtons] = useState("main");
   const [showSearchInput, setShowSearchInput] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
-  const [foundNodeId, setFoundNodeId] = useState(null);
+  const [enableStepping, setEnableStepping] = useState(false);
+  const [showNextButton, setShowNextButton] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [sortedNodes, setSortedNodes] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [showNotification, setShowNotification] = useState(false);
+  const [targetValue, setTargetValue] = useState(null);
+  const [previousNode, setPreviousNode] = useState(null);
+  const [showBinaryWarning, setShowBinaryWarning] = useState(false);
+  const [searchType, setSearchType] = useState("linear");
+  const [binaryRange, setBinaryRange] = useState({ left: 0, right: 0 });
 
-  // Configuration for different button sets and their actions
+  const handleLinearSearch = () => {
+    setSearchValue("");
+    setShowSearchInput(true);
+    setSearchType("linear");
+    d3.select(".home-container")
+      .append("div")
+      .attr("class", "overlay")
+      .style("opacity", 0)
+      .transition()
+      .duration(300)
+      .style("opacity", 0.5);
+  };
+
+  const handleBinarySearch = () => {
+    setSearchValue("");
+    setShowSearchInput(true);
+    setShowBinaryWarning(true);
+    setSearchType("binary");
+    d3.select(".home-container")
+      .append("div")
+      .attr("class", "overlay")
+      .style("opacity", 0)
+      .transition()
+      .duration(300)
+      .style("opacity", 0.5);
+  };
+
+  // Button configurations
   const buttonSets = {
     main: [
       { label: "Search", onClick: () => setCurrentButtons("search") },
@@ -27,24 +58,12 @@ const Home = ({ initialNodes }) => {
     ],
     search: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
-      {
-        label: "Linear Search",
-        onClick: () => setShowSearchInput(true),
-      },
-      {
-        label: "Binary Search",
-        onClick: () => {
-          setShowSearchInput(true);
-          setIsBinarySearch(true);
-        },
-      },
+      { label: "Linear Search", onClick: handleLinearSearch },
+      { label: "Binary Search", onClick: handleBinarySearch },
     ],
     sort: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
-      {
-        label: "Bubble Sort",
-        onClick: () => startBubbleSort(),
-      },
+      { label: "Bubble Sort", onClick: () => {} },
       { label: "Quick Sort", onClick: () => {} },
     ],
     traverse: [
@@ -54,25 +73,6 @@ const Home = ({ initialNodes }) => {
     ],
   };
 
-  // State for stepping control
-  const [enableStepping, setEnableStepping] = useState(false);
-  const [isAlgorithmRunning, setIsAlgorithmRunning] = useState(false);
-  const [nextStep, setNextStep] = useState(null);
-
-  // State for binary search
-  const [isBinarySearch, setIsBinarySearch] = useState(false);
-
-  // State for sorting
-  const [isSorting, setIsSorting] = useState(false);
-
-  // Add new state for sort animations
-  const [comparingIndices, setComparingIndices] = useState([]);
-  const [swappingIndices, setSwappingIndices] = useState([]);
-
-  // Add new state for completion animation
-  const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
-
-  // Handles mouse down events for both node dragging and grid panning
   const handleMouseDown = (e) => {
     if (e.target.classList.contains("node")) {
       const nodeId = Number(e.target.dataset.id);
@@ -82,13 +82,15 @@ const Home = ({ initialNodes }) => {
     }
   };
 
-  // Resets dragging and panning states on mouse up
   const handleMouseUp = () => {
     setIsPanning(false);
     setDraggedNode(null);
   };
 
-  // Handles both grid panning and node dragging movement
+  /**
+   * Handles mouse movement for both panning and node dragging.
+   * Constrains movement within grid boundaries.
+   */
   const handleMouseMove = (e) => {
     if (isPanning) {
       setGridOffset((prevOffset) => {
@@ -115,6 +117,7 @@ const Home = ({ initialNodes }) => {
             const nodeSize = 44;
             const halfNode = nodeSize / 2;
 
+            // Grid boundaries
             const maxX = (300 * window.innerWidth) / 100 - halfNode;
             const maxY = (300 * window.innerHeight) / 100 - halfNode;
             const minX = halfNode;
@@ -132,303 +135,346 @@ const Home = ({ initialNodes }) => {
     }
   };
 
-  // Processes search input and initiates linear search
   const handleSearchSubmit = (e) => {
-    if (e.key === "Enter") {
-      const value = parseInt(e.target.value);
-      if (!isNaN(value)) {
-        setShowSearchInput(false);
-        setSearchValue("");
+    if (e.key === "Enter" || e.key === "Escape") {
+      setShowSearchInput(false);
+      setShowBinaryWarning(false);
+      d3.select(".overlay")
+        .transition()
+        .duration(300)
+        .style("opacity", 0)
+        .remove();
+
+      if (e.key === "Enter") {
+        const searchValue = parseInt(e.target.value);
+        const sorted = [...nodes].sort((a, b) => a.x - b.x);
+        setTargetValue(searchValue);
+        setSortedNodes(sorted);
+        setCurrentStep(0);
+        setBinaryRange({ left: 0, right: sorted.length - 1 });
+        setShowNextButton(true);
         setIsSearching(true);
-        if (isBinarySearch) {
-          startBinarySearch(value);
-          setIsBinarySearch(false);
-        } else {
-          startLinearSearch(value);
-        }
-      }
-    }
-  };
 
-  // Performs linear search animation from left to right
-  const startLinearSearch = (searchValue) => {
-    setCurrentSearchIndex(-1); // Reset to -1 initially
-    setFoundNodeId(null);
-    setIsAlgorithmRunning(true);
-
-    const sortedNodes = [...nodes].sort((a, b) => a.x - b.x);
-
-    const searchStep = (index) => {
-      if (index >= sortedNodes.length) {
-        // Search complete, no match found
-        setIsSearching(false);
-        setCurrentSearchIndex(-1);
-        setShowNotification(true);
-        setIsAlgorithmRunning(false);
-        setNextStep(null);
-        setTimeout(() => {
-          setShowNotification(false);
-        }, 2000);
-        return;
-      }
-
-      const originalIndex = nodes.findIndex(
-        (node) => node.id === sortedNodes[index].id
-      );
-      setCurrentSearchIndex(originalIndex);
-
-      if (sortedNodes[index].value === searchValue) {
-        // Match found
-        setFoundNodeId(sortedNodes[index].id);
-        setIsSearching(false);
-        setCurrentSearchIndex(-1);
-        setIsAlgorithmRunning(false);
-        setNextStep(null);
-        return;
-      }
-
-      if (enableStepping) {
-        // Set up next step function
-        setNextStep(() => () => searchStep(index + 1));
-      } else {
-        // Auto-advance after delay
-        setTimeout(() => {
-          searchStep(index + 1);
-        }, 500);
-      }
-    };
-
-    // Start the search based on stepping mode
-    if (enableStepping) {
-      setNextStep(() => () => searchStep(0));
-    } else {
-      searchStep(0);
-    }
-  };
-
-  // Handle next step button click
-  const handleNextStep = () => {
-    if (nextStep) {
-      nextStep();
-    }
-  };
-
-  const startBinarySearch = (searchValue) => {
-    setCurrentSearchIndex(-1);
-    setFoundNodeId(null);
-    setIsAlgorithmRunning(true);
-
-    // Sort nodes by X position
-    const sortedNodes = [...nodes].sort((a, b) => a.x - b.x);
-
-    const searchStep = (left, right) => {
-      if (left > right) {
-        // Search complete, no match found
-        setIsSearching(false);
-        setCurrentSearchIndex(-1);
-        setShowNotification(true);
-        setIsAlgorithmRunning(false);
-        setNextStep(null);
-        setTimeout(() => {
-          setShowNotification(false);
-        }, 2000);
-        return;
-      }
-
-      const mid = Math.floor((left + right) / 2);
-      const originalIndex = nodes.findIndex(
-        (node) => node.id === sortedNodes[mid].id
-      );
-      setCurrentSearchIndex(originalIndex);
-
-      if (sortedNodes[mid].value === searchValue) {
-        // Match found
-        setFoundNodeId(sortedNodes[mid].id);
-        setIsSearching(false);
-        setCurrentSearchIndex(-1);
-        setIsAlgorithmRunning(false);
-        setNextStep(null);
-        return;
-      }
-
-      if (enableStepping) {
-        // Set up next step function
-        // Always divide spatially, regardless of value
-        if (mid > Math.floor((left + right) / 2)) {
-          setNextStep(() => () => searchStep(left, mid - 1));
-        } else {
-          setNextStep(() => () => searchStep(mid + 1, right));
-        }
-      } else {
-        // Auto-advance after delay
-        setTimeout(() => {
-          // Always divide spatially, regardless of value
-          if (mid > Math.floor((left + right) / 2)) {
-            searchStep(left, mid - 1);
+        if (!enableStepping) {
+          if (searchType === "binary") {
+            runFullBinarySearch(searchValue, sorted);
           } else {
-            searchStep(mid + 1, right);
+            runFullSearch(searchValue, sorted);
           }
-        }, 500);
+        }
       }
-    };
-
-    // Start the search based on stepping mode
-    if (enableStepping) {
-      setNextStep(() => () => searchStep(0, sortedNodes.length - 1));
-    } else {
-      searchStep(0, sortedNodes.length - 1);
     }
   };
 
-  const startBubbleSort = () => {
-    setIsAlgorithmRunning(true);
-    setIsSorting(true);
+  const handleNextStep = async () => {
+    if (searchType === "binary") {
+      await handleBinarySearchStep();
+    } else {
+      await handleLinearSearchStep();
+    }
+  };
 
-    // Calculate center of current view
-    const viewCenterX = -gridOffset.x + window.innerWidth / 2;
-    const viewCenterY = -gridOffset.y + window.innerHeight / 2;
-    const nodeSpacing = 60;
+  /**
+   * Handles the binary search algorithm step by step.
+   * Highlights the current node, updates search range, and shows completion animations.
+   * Uses the midpoint of the current range to determine the next search direction.
+   */
+  const handleBinarySearchStep = async () => {
+    const mid = Math.floor((binaryRange.left + binaryRange.right) / 2);
+    const node = sortedNodes[mid];
 
-    // First, sort nodes by X position to maintain left-to-right order
-    const orderedNodes = [...nodes].sort((a, b) => a.x - b.x);
+    if (previousNode) {
+      d3.select(`[data-id="${previousNode.id}"]`)
+        .transition()
+        .duration(300)
+        .style("background-color", "white");
+    }
 
-    // Then move all nodes to center line while maintaining order
-    const initialNodes = orderedNodes.map((node, i) => ({
-      ...node,
-      x: viewCenterX + (i - orderedNodes.length / 2) * nodeSpacing,
-      y: viewCenterY,
-    }));
-    setNodes(initialNodes);
+    await d3
+      .select(`[data-id="${node.id}"]`)
+      .transition()
+      .duration(300)
+      .style("background-color", "#4caf50");
 
-    // Create a copy for sorting
-    const sortedNodes = [...initialNodes];
-    let swapped = false;
+    setPreviousNode(node);
 
-    const compareAndSwap = (index) => {
-      return new Promise((resolve) => {
-        // First show comparison animation
-        setComparingIndices([index, index + 1]);
-        setSwappingIndices([]);
+    if (node.value === targetValue) {
+      setPreviousNode(null);
+      const foundNode = d3.select(`[data-id="${node.id}"]`);
+      const resultText = d3
+        .select(".home-container")
+        .append("div")
+        .attr("class", "search-result")
+        .style("opacity", 1)
+        .text(`Node ${targetValue} found`);
 
-        const doSwap = () => {
-          if (sortedNodes[index].value > sortedNodes[index + 1].value) {
-            // Show swapping animation
-            setComparingIndices([]);
-            setSwappingIndices([index, index + 1]);
+      const blinkInterval = setInterval(async () => {
+        await foundNode
+          .transition()
+          .duration(300)
+          .style("background-color", "#ffd700")
+          .transition()
+          .duration(300)
+          .style("background-color", "white")
+          .end();
+      }, 600);
 
-            // Swap nodes
-            const temp = sortedNodes[index];
-            sortedNodes[index] = sortedNodes[index + 1];
-            sortedNodes[index + 1] = temp;
-            swapped = true;
+      setTimeout(() => {
+        clearInterval(blinkInterval);
+        resultText.transition().duration(500).style("opacity", 0).remove();
+        setShowNextButton(false);
+        setIsSearching(false);
+      }, 2000);
 
-            // Update positions with arc animation
-            const updatedNodes = sortedNodes.map((node, i) => {
-              const baseX =
-                viewCenterX + (i - sortedNodes.length / 2) * nodeSpacing;
-              const baseY = viewCenterY;
+      return;
+    }
 
-              if (i === index) {
-                // Left node moves over
-                return {
-                  ...node,
-                  x: baseX,
-                  y: baseY,
-                  arcOffset: 20, // Move up
-                  isSwappingLeft: true,
-                };
-              } else if (i === index + 1) {
-                // Right node moves under
-                return {
-                  ...node,
-                  x: baseX,
-                  y: baseY,
-                  arcOffset: -20, // Move down
-                  isSwappingRight: true,
-                };
-              }
-              return {
-                ...node,
-                x: baseX,
-                y: baseY,
-                arcOffset: 0,
-                isSwappingLeft: false,
-                isSwappingRight: false,
-              };
-            });
-            setNodes(updatedNodes);
+    if (binaryRange.left >= binaryRange.right) {
+      setPreviousNode(null);
+      const resultText = d3
+        .select(".home-container")
+        .append("div")
+        .attr("class", "search-result")
+        .style("opacity", 1)
+        .text(`Node ${targetValue} not found`);
 
-            // Reset nodes to center after animation
-            setTimeout(() => {
-              const centeredNodes = sortedNodes.map((node, i) => ({
-                ...node,
-                x: viewCenterX + (i - sortedNodes.length / 2) * nodeSpacing,
-                y: viewCenterY,
-                arcOffset: 0,
-                isSwappingLeft: false,
-                isSwappingRight: false,
-              }));
-              setNodes(centeredNodes);
-            }, 500); // Match the animation duration
-          }
-          resolve();
-        };
+      setTimeout(() => {
+        resultText.transition().duration(500).style("opacity", 0).remove();
+        setShowNextButton(false);
+        setIsSearching(false);
+      }, 2000);
+      return;
+    }
 
-        if (enableStepping) {
-          setNextStep(() => () => {
-            doSwap();
-            resolve();
-          });
-        } else {
-          setTimeout(doSwap, 500);
-        }
-      });
-    };
+    if (node.value < targetValue) {
+      setBinaryRange({ ...binaryRange, left: mid + 1 });
+    } else {
+      setBinaryRange({ ...binaryRange, right: mid - 1 });
+    }
+  };
 
-    const sortStep = async (index) => {
-      if (index >= sortedNodes.length - 1) {
-        if (!swapped) {
-          // Sort is complete, show completion animation
-          setComparingIndices([]);
-          setSwappingIndices([]);
-          setShowCompletionAnimation(true);
+  /**
+   * Handles the linear search algorithm step by step.
+   * Sequentially checks each node from left to right.
+   * Highlights current node and shows completion animations.
+   */
+  const handleLinearSearchStep = async () => {
+    if (currentStep < sortedNodes.length) {
+      const node = sortedNodes[currentStep];
 
-          // Clear completion animation after delay
-          setTimeout(() => {
-            setShowCompletionAnimation(false);
-            setIsAlgorithmRunning(false);
-            setIsSorting(false);
-            setNextStep(null);
-          }, 2000);
-          return;
-        }
-        // Reset for next pass
-        swapped = false;
-        if (enableStepping) {
-          setNextStep(() => () => sortStep(0));
-        } else {
-          setTimeout(() => sortStep(0), 500);
-        }
+      if (previousNode) {
+        d3.select(`[data-id="${previousNode.id}"]`)
+          .transition()
+          .duration(300)
+          .style("background-color", "white");
+      }
+
+      await d3
+        .select(`[data-id="${node.id}"]`)
+        .transition()
+        .duration(300)
+        .style("background-color", "#4caf50");
+
+      setPreviousNode(node);
+
+      if (node.value === targetValue) {
+        setPreviousNode(null);
+        const foundNode = d3.select(`[data-id="${node.id}"]`);
+        const resultText = d3
+          .select(".home-container")
+          .append("div")
+          .attr("class", "search-result")
+          .style("opacity", 1)
+          .text(`Node ${targetValue} found`);
+
+        const blinkInterval = setInterval(async () => {
+          await foundNode
+            .transition()
+            .duration(300)
+            .style("background-color", "#ffd700")
+            .transition()
+            .duration(300)
+            .style("background-color", "white")
+            .end();
+        }, 600);
+
+        setTimeout(() => {
+          clearInterval(blinkInterval);
+          resultText.transition().duration(500).style("opacity", 0).remove();
+          setShowNextButton(false);
+          setIsSearching(false);
+        }, 2000);
+
         return;
       }
 
-      await compareAndSwap(index);
+      if (currentStep === sortedNodes.length - 1) {
+        setPreviousNode(null);
+        const resultText = d3
+          .select(".home-container")
+          .append("div")
+          .attr("class", "search-result")
+          .style("opacity", 1)
+          .text(`Node ${targetValue} not found`);
 
-      if (enableStepping) {
-        setNextStep(() => () => sortStep(index + 1));
-      } else {
-        setTimeout(() => sortStep(index + 1), 500);
+        setTimeout(() => {
+          resultText.transition().duration(500).style("opacity", 0).remove();
+          setShowNextButton(false);
+          setIsSearching(false);
+        }, 2000);
       }
-    };
 
-    // Start sorting after initial positioning
-    setTimeout(() => {
-      if (enableStepping) {
-        setNextStep(() => () => sortStep(0));
-      } else {
-        sortStep(0);
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  /**
+   * Executes a full linear search without stepping.
+   * Animates through all nodes sequentially until target is found or end is reached.
+   */
+  const runFullSearch = async (searchValue, sortedNodes) => {
+    const resultText = d3
+      .select(".home-container")
+      .append("div")
+      .attr("class", "search-result")
+      .style("opacity", 0)
+      .text("Searching...");
+
+    for (let i = 0; i < sortedNodes.length; i++) {
+      const node = sortedNodes[i];
+
+      await d3
+        .select(`[data-id="${node.id}"]`)
+        .transition()
+        .duration(300)
+        .style("background-color", "#4caf50")
+        .transition()
+        .duration(300)
+        .style("background-color", "white")
+        .end();
+
+      if (node.value === searchValue) {
+        // Found the value
+        const foundNode = d3.select(`[data-id="${node.id}"]`);
+        resultText.style("opacity", 1).text(`Node ${searchValue} found`);
+
+        const blinkInterval = setInterval(async () => {
+          await foundNode
+            .transition()
+            .duration(300)
+            .style("background-color", "#ffd700")
+            .transition()
+            .duration(300)
+            .style("background-color", "white")
+            .end();
+        }, 600);
+
+        setTimeout(() => {
+          clearInterval(blinkInterval);
+          resultText.transition().duration(500).style("opacity", 0).remove();
+          setShowNextButton(false);
+          setIsSearching(false);
+        }, 2000);
+
+        return;
       }
-    }, 1000); // Wait for initial positioning animation
+
+      if (i === sortedNodes.length - 1) {
+        // Not found
+        resultText
+          .style("opacity", 1)
+          .text(`Node ${searchValue} not found`)
+          .transition()
+          .delay(2000)
+          .duration(500)
+          .style("opacity", 0)
+          .remove()
+          .on("end", () => {
+            setShowNextButton(false);
+            setIsSearching(false);
+          });
+      }
+    }
+  };
+
+  /**
+   * Executes a full binary search without stepping.
+   * Animates through nodes using binary search algorithm until target is found or range is empty.
+   */
+  const runFullBinarySearch = async (searchValue, sortedNodes) => {
+    const resultText = d3
+      .select(".home-container")
+      .append("div")
+      .attr("class", "search-result")
+      .style("opacity", 0)
+      .text("Searching...");
+
+    let left = 0;
+    let right = sortedNodes.length - 1;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      const node = sortedNodes[mid];
+
+      // Highlight current node
+      await d3
+        .select(`[data-id="${node.id}"]`)
+        .transition()
+        .duration(300)
+        .style("background-color", "#4caf50")
+        .transition()
+        .duration(300)
+        .style("background-color", "white")
+        .end();
+
+      if (node.value === searchValue) {
+        // Found value
+        const foundNode = d3.select(`[data-id="${node.id}"]`);
+        resultText.style("opacity", 1).text(`Node ${searchValue} found`);
+
+        const blinkInterval = setInterval(async () => {
+          await foundNode
+            .transition()
+            .duration(300)
+            .style("background-color", "#ffd700")
+            .transition()
+            .duration(300)
+            .style("background-color", "white")
+            .end();
+        }, 600);
+
+        setTimeout(() => {
+          clearInterval(blinkInterval);
+          resultText.transition().duration(500).style("opacity", 0).remove();
+          setShowNextButton(false);
+          setIsSearching(false);
+        }, 2000);
+
+        return;
+      }
+
+      if (node.value < searchValue) {
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+
+      if (left > right) {
+        // Not found
+        resultText
+          .style("opacity", 1)
+          .text(`Node ${searchValue} not found`)
+          .transition()
+          .delay(2000)
+          .duration(500)
+          .style("opacity", 0)
+          .remove()
+          .on("end", () => {
+            setShowNextButton(false);
+            setIsSearching(false);
+          });
+      }
+    }
   };
 
   return (
@@ -444,6 +490,24 @@ const Home = ({ initialNodes }) => {
           </button>
         ))}
       </div>
+      {showSearchInput && (
+        <div className="search-input-container">
+          {showBinaryWarning && (
+            <div className="binary-warning">
+              Binary search will not work properly in an unsorted dataset.
+            </div>
+          )}
+          <input
+            type="number"
+            className="search-input"
+            placeholder="Enter number to search..."
+            autoFocus
+            onKeyDown={handleSearchSubmit}
+            onChange={(e) => setSearchValue(e.target.value)}
+            value={searchValue}
+          />
+        </div>
+      )}
       <div
         className="grid"
         onMouseDown={handleMouseDown}
@@ -451,72 +515,42 @@ const Home = ({ initialNodes }) => {
         onMouseMove={handleMouseMove}
         style={{
           transform: `translate(${gridOffset.x}px, ${gridOffset.y}px)`,
-          pointerEvents: showSearchInput || isSearching ? "none" : "auto",
         }}
       >
-        {nodes.map((node, index) => (
+        {nodes.map((node) => (
           <div
             key={node.id}
-            className={`node ${
-              currentSearchIndex === index ? "searching" : ""
-            } ${foundNodeId === node.id ? "found" : ""} ${
-              comparingIndices.includes(index) ? "comparing" : ""
-            } ${swappingIndices.includes(index) ? "swapping" : ""} ${
-              node.isSwappingLeft ? "swapping-left" : ""
-            } ${node.isSwappingRight ? "swapping-right" : ""} ${
-              showCompletionAnimation ? "completion" : ""
-            }`}
+            className="node"
             data-id={node.id}
             style={{
-              transform: `translate(${node.x}px, ${node.y}px) translateY(${
-                node.arcOffset || 0
-              }px)`,
-              transition: isSorting ? "transform 0.5s ease-in-out" : "none",
+              transform: `translate(${node.x}px, ${node.y}px)`,
             }}
           >
             {node.value}
           </div>
         ))}
       </div>
-      {showSearchInput && (
-        <div className="search-overlay">
-          {isBinarySearch && (
-            <div className="search-warning">
-              Note: Binary search may not find all values in an unsorted dataset
-            </div>
-          )}
-          <input
-            type="number"
-            className="search-input"
-            placeholder="Enter a number to search..."
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            onKeyPress={handleSearchSubmit}
-            autoFocus
-          />
-        </div>
-      )}
-      <div className="stepping-control">
-        {isAlgorithmRunning ? (
+      <div className="stepping-container">
+        {showNextButton ? (
           <button
-            className="next-step-button"
+            className={`next-button ${!enableStepping ? "disabled" : ""}`}
             onClick={handleNextStep}
-            disabled={!nextStep}
+            disabled={!enableStepping || !isSearching}
           >
             Next
           </button>
         ) : (
-          <label>
+          <>
             <input
               type="checkbox"
+              id="stepping"
               checked={enableStepping}
               onChange={(e) => setEnableStepping(e.target.checked)}
             />
-            <span>Enable Stepping</span>
-          </label>
+            <label htmlFor="stepping">Enable Stepping</label>
+          </>
         )}
       </div>
-      {showNotification && <div className="notification">Node not found</div>}
     </div>
   );
 };

@@ -96,206 +96,129 @@ body,
   font-size: 16px;
   z-index: 1;
   color: black;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .node:hover {
   background-color: #f0f0f0;
 }
 
-.node.swapping-left {
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  transform-origin: right center !important;
-}
-
-.node.swapping-right {
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  transform-origin: left center !important;
-}
-
-.search-overlay {
+.overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  background-color: black;
   z-index: 2;
 }
 
-.search-input {
-  padding: 10px 20px;
-  font-size: 18px;
-  border: none;
-  border-radius: 5px;
-  width: 200px;
-  text-align: center;
-}
-
-.search-input:focus {
-  outline: none;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-}
-
-@keyframes searchBlink {
-  0%,
-  100% {
-    background-color: white;
-  }
-  50% {
-    background-color: #90ee90;
-  } /* Light green */
-}
-
-@keyframes foundBlink {
-  0%,
-  100% {
-    background-color: white;
-  }
-  50% {
-    background-color: gold;
-  }
-}
-
-.node.searching {
-  animation: searchBlink 1s infinite;
-}
-
-.node.found {
-  animation: foundBlink 1s infinite;
-}
-
-.node.comparing {
-  animation: compareBlink 1s infinite;
-}
-
-.node.swapping {
-  animation: swapBlink 1s infinite;
-}
-
-@keyframes compareBlink {
-  0%,
-  100% {
-    background-color: white;
-  }
-  50% {
-    background-color: #90ee90;
-  } /* Light green */
-}
-
-@keyframes swapBlink {
-  0%,
-  100% {
-    background-color: white;
-  }
-  50% {
-    background-color: gold;
-  }
-}
-
-.node.completion {
-  animation: completionBlink 2s;
-}
-
-@keyframes completionBlink {
-  0% {
-    background-color: white;
-  }
-  50% {
-    background-color: gold;
-  }
-  100% {
-    background-color: white;
-  }
-}
-
-.notification {
+.search-input-container {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 15px 30px;
-  border-radius: 5px;
+  z-index: 3;
+  background-color: white;
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.search-input {
+  background: transparent;
+  border: none;
+  color: black;
   font-size: 18px;
-  animation: fadeInOut 2s ease-in-out;
+  text-align: center;
+  outline: none;
+  width: 250px;
+  padding: 8px;
+}
+
+.search-input::placeholder {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.result-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: black;
   z-index: 2;
 }
 
-@keyframes fadeInOut {
-  0% {
-    opacity: 0;
-  }
-  15% {
-    opacity: 1;
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
+.search-result {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: black;
+  font-size: 24px;
+  z-index: 3;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.8),
+    -2px -2px 4px rgba(255, 255, 255, 0.8),
+    2px -2px 4px rgba(255, 255, 255, 0.8), -2px 2px 4px rgba(255, 255, 255, 0.8);
 }
 
-.stepping-control {
+.stepping-container {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 2;
+  background-color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 8px 12px;
-  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1;
 }
 
-.stepping-control label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.stepping-container label {
   color: black;
   font-size: 14px;
-  cursor: pointer;
   user-select: none;
 }
 
-.stepping-control input[type="checkbox"] {
+.stepping-container input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
   cursor: pointer;
 }
 
-.next-step-button {
+.next-button {
   padding: 8px 16px;
   font-size: 14px;
+  cursor: pointer;
+  border: none;
   background-color: #007bff;
   color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
+  border-radius: 4px;
   transition: background-color 0.3s;
 }
 
-.next-step-button:hover {
+.next-button:hover {
   background-color: #0056b3;
 }
 
-.next-step-button:disabled {
+.next-button.disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+  opacity: 0.7;
 }
 
-.search-warning {
-  color: #856404;
-  background-color: #fff3cd;
-  padding: 10px;
-  border-radius: 5px;
-  margin-bottom: 15px;
+.next-button.disabled:hover {
+  background-color: #cccccc;
+}
+
+.binary-warning {
+  color: #d32f2f;
+  font-size: 12px;
+  margin-bottom: 8px;
   text-align: center;
-  font-size: 14px;
-  max-width: 300px;
 }
