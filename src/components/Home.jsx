@@ -22,7 +22,11 @@ const Home = ({ initialNodes }) => {
   const [searchType, setSearchType] = useState("linear");
   const [binaryRange, setBinaryRange] = useState({ left: 0, right: 0 });
   const [isSorting, setIsSorting] = useState(false);
-  const [bubbleStep, setBubbleStep] = useState({ pass: 0, position: 0 });
+  const [bubbleStep, setBubbleStep] = useState({
+    pass: 0,
+    position: 0,
+    hadSwap: false,
+  });
   const [currentOperation, setCurrentOperation] = useState(null);
 
   const handleLinearSearch = () => {
@@ -59,7 +63,7 @@ const Home = ({ initialNodes }) => {
    * Returns true if sorting is complete, false if more steps remain.
    */
   const handleBubbleSortStep = async () => {
-    const { pass, position } = bubbleStep;
+    const { pass, position, hadSwap } = bubbleStep;
     const nodeArray = [...nodes].sort((a, b) => a.x - b.x);
     const pair = [nodeArray[position], nodeArray[position + 1]];
 
@@ -106,6 +110,8 @@ const Home = ({ initialNodes }) => {
           return n;
         })
       );
+
+      setBubbleStep((prev) => ({ ...prev, hadSwap: true }));
     }
 
     // Reset highlight
@@ -122,8 +128,9 @@ const Home = ({ initialNodes }) => {
 
     // Update step state
     if (position >= nodeArray.length - 2) {
-      if (pass >= nodeArray.length - 2) {
-        // Sorting complete
+      // End of pass
+      if (!hadSwap && pass > 0) {
+        // No swaps in this pass and not first pass - sorting complete
         d3.select(".home-container")
           .append("div")
           .attr("class", "search-result")
@@ -139,14 +146,16 @@ const Home = ({ initialNodes }) => {
           .remove();
 
         setIsSorting(false);
-        setBubbleStep({ pass: 0, position: 0 });
+        setBubbleStep({ pass: 0, position: 0, hadSwap: false });
         setShowNextButton(false);
         setCurrentOperation(null);
         return true;
       }
-      setBubbleStep({ pass: pass + 1, position: 0 });
+      // Start new pass, reset hadSwap only at start of new pass
+      setBubbleStep({ pass: pass + 1, position: 0, hadSwap: false });
     } else {
-      setBubbleStep({ ...bubbleStep, position: position + 1 });
+      // Continue current pass, maintain hadSwap state
+      setBubbleStep((prev) => ({ ...prev, position: position + 1 }));
     }
     return false;
   };
@@ -193,11 +202,12 @@ const Home = ({ initialNodes }) => {
     setCurrentOperation("sort");
 
     if (!enableStepping) {
-      // Run full animation
       let swapped;
+      const nodeArray = [...nodes].sort((a, b) => a.x - b.x);
+
       do {
         swapped = false;
-        const nodeArray = [...sortedByX];
+
         for (let i = 0; i < nodeArray.length - 1; i++) {
           const pair = [nodeArray[i], nodeArray[i + 1]];
 
@@ -215,8 +225,8 @@ const Home = ({ initialNodes }) => {
 
           if (pair[0].value > pair[1].value) {
             swapped = true;
-            const leftX = nodeArray[i].x;
-            const rightX = nodeArray[i + 1].x;
+            const leftX = startX + i * spacing;
+            const rightX = startX + (i + 1) * spacing;
 
             // Animate the swap
             await Promise.all([
@@ -224,19 +234,19 @@ const Home = ({ initialNodes }) => {
                 d3.select(`[data-id="${pair[0].id}"]`)
                   .transition()
                   .duration(600)
-                  .style("transform", `translate(${rightX}px, ${pair[0].y}px)`)
+                  .style("transform", `translate(${rightX}px, ${centerY}px)`)
                   .on("end", resolve);
               }),
               new Promise((resolve) => {
                 d3.select(`[data-id="${pair[1].id}"]`)
                   .transition()
                   .duration(600)
-                  .style("transform", `translate(${leftX}px, ${pair[1].y}px)`)
+                  .style("transform", `translate(${leftX}px, ${centerY}px)`)
                   .on("end", resolve);
               }),
             ]);
 
-            // Update positions in state
+            // Update positions in state and array
             setNodes((prev) =>
               prev.map((n) => {
                 if (n.id === pair[0].id) return { ...n, x: rightX };
@@ -245,7 +255,6 @@ const Home = ({ initialNodes }) => {
               })
             );
 
-            // Update array for next iteration
             [nodeArray[i], nodeArray[i + 1]] = [nodeArray[i + 1], nodeArray[i]];
           }
 
@@ -260,10 +269,27 @@ const Home = ({ initialNodes }) => {
                 .end()
             )
           );
-
-          await new Promise((resolve) => setTimeout(resolve, 300));
         }
       } while (swapped);
+
+      // Show completion message
+      d3.select(".home-container")
+        .append("div")
+        .attr("class", "search-result")
+        .style("opacity", 0)
+        .text("Sorting complete!")
+        .transition()
+        .duration(300)
+        .style("opacity", 1)
+        .transition()
+        .delay(1400)
+        .duration(300)
+        .style("opacity", 0)
+        .remove();
+
+      setIsSorting(false);
+      setShowNextButton(false);
+      setCurrentOperation(null);
     }
   };
 
