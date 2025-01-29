@@ -10,6 +10,7 @@ export const handleBubbleSortStep = async ({
   startX,
   centerY,
   spacing,
+  animationSpeed,
 }) => {
   const { pass, position, hadSwap } = bubbleStep;
   // Use nodes directly without sorting by x position
@@ -21,7 +22,7 @@ export const handleBubbleSortStep = async ({
       d3
         .select(`[data-id="${node.id}"]`)
         .transition()
-        .duration(300)
+        .duration(300 / animationSpeed)
         .style("background-color", "#4caf50")
         .end()
     )
@@ -37,14 +38,14 @@ export const handleBubbleSortStep = async ({
       new Promise((resolve) => {
         d3.select(`[data-id="${pair[0].id}"]`)
           .transition()
-          .duration(600)
+          .duration(600 / animationSpeed)
           .style("transform", `translate(${rightX}px, ${centerY}px)`)
           .on("end", resolve);
       }),
       new Promise((resolve) => {
         d3.select(`[data-id="${pair[1].id}"]`)
           .transition()
-          .duration(600)
+          .duration(600 / animationSpeed)
           .style("transform", `translate(${leftX}px, ${centerY}px)`)
           .on("end", resolve);
       }),
@@ -73,7 +74,7 @@ export const handleBubbleSortStep = async ({
       d3
         .select(`[data-id="${node.id}"]`)
         .transition()
-        .duration(300)
+        .duration(300 / animationSpeed)
         .style("background-color", "white")
         .end()
     )
@@ -90,11 +91,11 @@ export const handleBubbleSortStep = async ({
         .style("opacity", 0)
         .text("Sorting complete!")
         .transition()
-        .duration(300)
+        .duration(300 / animationSpeed)
         .style("opacity", 1)
         .transition()
-        .delay(1400)
-        .duration(300)
+        .delay(1400 / animationSpeed)
+        .duration(300 / animationSpeed)
         .style("opacity", 0)
         .remove();
 
@@ -120,6 +121,7 @@ export const runFullBubbleSort = async ({
   setIsSorting,
   setShowNextButton,
   setCurrentOperation,
+  animationSpeed,
 }) => {
   const centerY = window.innerHeight / 2;
   const nodeWidth = 44;
@@ -141,7 +143,7 @@ export const runFullBubbleSort = async ({
           d3
             .select(`[data-id="${node.id}"]`)
             .transition()
-            .duration(300)
+            .duration(300 / animationSpeed)
             .style("background-color", "#4caf50")
             .end()
         )
@@ -156,14 +158,14 @@ export const runFullBubbleSort = async ({
           new Promise((resolve) => {
             d3.select(`[data-id="${pair[0].id}"]`)
               .transition()
-              .duration(600)
+              .duration(600 / animationSpeed)
               .style("transform", `translate(${rightX}px, ${centerY}px)`)
               .on("end", resolve);
           }),
           new Promise((resolve) => {
             d3.select(`[data-id="${pair[1].id}"]`)
               .transition()
-              .duration(600)
+              .duration(600 / animationSpeed)
               .style("transform", `translate(${leftX}px, ${centerY}px)`)
               .on("end", resolve);
           }),
@@ -185,7 +187,7 @@ export const runFullBubbleSort = async ({
           d3
             .select(`[data-id="${node.id}"]`)
             .transition()
-            .duration(300)
+            .duration(300 / animationSpeed)
             .style("background-color", "white")
             .end()
         )
@@ -199,11 +201,11 @@ export const runFullBubbleSort = async ({
     .style("opacity", 0)
     .text("Sorting complete!")
     .transition()
-    .duration(300)
+    .duration(300 / animationSpeed)
     .style("opacity", 1)
     .transition()
-    .delay(1400)
-    .duration(300)
+    .delay(1400 / animationSpeed)
+    .duration(300 / animationSpeed)
     .style("opacity", 0)
     .remove();
 

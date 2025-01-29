@@ -40,6 +40,11 @@ const Home = ({ initialNodes }) => {
     hadSwap: false,
   });
   const [currentOperation, setCurrentOperation] = useState(null);
+  const [showAddInput, setShowAddInput] = useState(false);
+  const [addNodesValue, setAddNodesValue] = useState("");
+  const [addInputError, setAddInputError] = useState("");
+  const [animationSpeed, setAnimationSpeed] = useState(1);
+  const [nodeOverDelete, setNodeOverDelete] = useState(null);
 
   const handleLinearSearch = () => {
     setSearchValue("");
@@ -91,15 +96,13 @@ const Home = ({ initialNodes }) => {
         return new Promise((resolve) => {
           d3.select(`[data-id="${node.id}"]`)
             .transition()
-            .duration(1000)
+            .duration(1000 / animationSpeed)
             .style("transform", `translate(${newX}px, ${centerY}px)`)
             .on("end", () => {
               setNodes((prev) => {
-                // Update the node being centered
                 const updated = prev.map((n) =>
                   n.id === node.id ? { ...n, x: newX, y: centerY } : n
                 );
-                // Maintain visual order in state
                 return updated.sort((a, b) => a.x - b.x);
               });
               resolve();
@@ -124,7 +127,67 @@ const Home = ({ initialNodes }) => {
         startX,
         centerY,
         spacing,
+        animationSpeed,
       });
+    }
+  };
+
+  const handleAddNodes = () => {
+    setAddNodesValue("");
+    setShowAddInput(true);
+    setCurrentOperation("add");
+    d3.select(".home-container")
+      .append("div")
+      .attr("class", "overlay")
+      .style("opacity", 0)
+      .transition()
+      .duration(300)
+      .style("opacity", 0.5);
+  };
+
+  const handleAddNodesSubmit = (e) => {
+    if (e.key === "Enter" || e.key === "Escape") {
+      if (e.key === "Enter") {
+        try {
+          const values = e.target.value.split(",");
+          const newValues = values.map((num) => {
+            const parsed = parseInt(num.trim());
+            if (isNaN(parsed)) {
+              throw new Error("Please enter only numbers separated by commas");
+            }
+            return parsed;
+          });
+
+          setAddInputError("");
+          setShowAddInput(false);
+          d3.select(".overlay")
+            .transition()
+            .duration(300)
+            .style("opacity", 0)
+            .remove();
+
+          const maxId = Math.max(...nodes.map((n) => n.id), -1);
+          const newNodes = newValues.map((value, index) => ({
+            id: maxId + 1 + index,
+            value,
+            x: Math.random() * 500,
+            y: 60 + Math.random() * (window.innerHeight - 60),
+          }));
+
+          setNodes((prev) => [...prev, ...newNodes]);
+        } catch (error) {
+          setAddInputError(error.message);
+          return;
+        }
+      } else {
+        setAddInputError("");
+        setShowAddInput(false);
+        d3.select(".overlay")
+          .transition()
+          .duration(300)
+          .style("opacity", 0)
+          .remove();
+      }
     }
   };
 
@@ -133,7 +196,8 @@ const Home = ({ initialNodes }) => {
     main: [
       { label: "Search", onClick: () => setCurrentButtons("search") },
       { label: "Sort", onClick: () => setCurrentButtons("sort") },
-      { label: "Traverse", onClick: () => setCurrentButtons("traverse") },
+      { label: "Add Node(s)", onClick: handleAddNodes },
+      { label: "Tree Mode", onClick: () => {} },
     ],
     search: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
@@ -142,17 +206,17 @@ const Home = ({ initialNodes }) => {
     ],
     sort: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
+      { label: "Selection Sort", onClick: () => {} },
       { label: "Bubble Sort", onClick: handleBubbleSort },
-      { label: "Quick Sort", onClick: () => {} },
-    ],
-    traverse: [
-      { label: "Back", onClick: () => setCurrentButtons("main") },
-      { label: "Pre-order", onClick: () => {} },
-      { label: "Post-order", onClick: () => {} },
+      { label: "Insertion Sort", onClick: () => {} },
     ],
   };
 
   const handleMouseDown = (e) => {
+    if (isSearching || isSorting) {
+      return;
+    }
+
     if (e.target.classList.contains("node")) {
       const nodeId = Number(e.target.dataset.id);
       setDraggedNode(nodeId);
@@ -162,6 +226,14 @@ const Home = ({ initialNodes }) => {
   };
 
   const handleMouseUp = () => {
+    if (draggedNode !== null && nodeOverDelete === draggedNode) {
+      // Remove the node
+      setNodes((prev) => prev.filter((node) => node.id !== draggedNode));
+
+      // Reset states
+      setNodeOverDelete(null);
+    }
+
     setIsPanning(false);
     setDraggedNode(null);
   };
@@ -303,7 +375,30 @@ const Home = ({ initialNodes }) => {
         startX,
         centerY,
         spacing,
+        animationSpeed,
       });
+    }
+  };
+
+  const handleNodeMouseMove = (e, nodeId) => {
+    // Only check for delete when dragging and not during operations
+    if (draggedNode === nodeId && !isSearching && !isSorting) {
+      const deleteButton = document.querySelector(".delete-button");
+      if (deleteButton) {
+        const buttonRect = deleteButton.getBoundingClientRect();
+        const nodeRect = e.currentTarget.getBoundingClientRect();
+
+        const nodeCenterX = nodeRect.left + nodeRect.width / 2;
+        const nodeCenterY = nodeRect.top + nodeRect.height / 2;
+
+        const isOver =
+          nodeCenterX >= buttonRect.left &&
+          nodeCenterX <= buttonRect.right &&
+          nodeCenterY >= buttonRect.top &&
+          nodeCenterY <= buttonRect.bottom;
+
+        setNodeOverDelete(isOver ? nodeId : null);
+      }
     }
   };
 
@@ -338,6 +433,20 @@ const Home = ({ initialNodes }) => {
           />
         </div>
       )}
+      {showAddInput && (
+        <div className="search-input-container">
+          {addInputError && <div className="input-error">{addInputError}</div>}
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Enter comma-separated numbers..."
+            autoFocus
+            onKeyDown={handleAddNodesSubmit}
+            onChange={(e) => setAddNodesValue(e.target.value)}
+            value={addNodesValue}
+          />
+        </div>
+      )}
       <div
         className="grid"
         onMouseDown={handleMouseDown}
@@ -350,36 +459,60 @@ const Home = ({ initialNodes }) => {
         {nodes.map((node) => (
           <div
             key={node.id}
-            className="node"
+            className={`node ${
+              nodeOverDelete === node.id ? "delete-hover" : ""
+            } ${isSearching || isSorting ? "operation-active" : ""}`}
             data-id={node.id}
             style={{
               transform: `translate(${node.x}px, ${node.y}px)`,
             }}
+            onMouseMove={(e) => handleNodeMouseMove(e, node.id)}
+            onMouseLeave={() => setNodeOverDelete(null)}
           >
             {node.value}
           </div>
         ))}
       </div>
-      <div className="stepping-container">
-        {showNextButton ? (
-          <button
-            className={`next-button ${!enableStepping ? "disabled" : ""}`}
-            onClick={handleNextStep}
-            disabled={!enableStepping || (!isSearching && !isSorting)}
+      <button
+        className={`delete-button ${nodeOverDelete !== null ? "active" : ""}`}
+      >
+        Delete
+      </button>
+      <div className="controls-container">
+        <div className="speed-control">
+          <label htmlFor="speed">Animation Speed:</label>
+          <select
+            id="speed"
+            value={animationSpeed}
+            onChange={(e) => setAnimationSpeed(Number(e.target.value))}
           >
-            Next
-          </button>
-        ) : (
-          <>
-            <input
-              type="checkbox"
-              id="stepping"
-              checked={enableStepping}
-              onChange={(e) => setEnableStepping(e.target.checked)}
-            />
-            <label htmlFor="stepping">Enable Stepping</label>
-          </>
-        )}
+            <option value={0.5}>0.5x</option>
+            <option value={1}>1x</option>
+            <option value={2}>2x</option>
+            <option value={4}>4x</option>
+          </select>
+        </div>
+        <div className="stepping-container">
+          {showNextButton ? (
+            <button
+              className={`next-button ${!enableStepping ? "disabled" : ""}`}
+              onClick={handleNextStep}
+              disabled={!enableStepping || (!isSearching && !isSorting)}
+            >
+              Next
+            </button>
+          ) : (
+            <>
+              <input
+                type="checkbox"
+                id="stepping"
+                checked={enableStepping}
+                onChange={(e) => setEnableStepping(e.target.checked)}
+              />
+              <label htmlFor="stepping">Enable Stepping</label>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
