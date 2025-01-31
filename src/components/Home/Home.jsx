@@ -14,6 +14,10 @@ import {
   handleLinearSearchStep,
   runFullLinearSearch,
 } from "./algorithms/LinearSearch";
+import {
+  handleSelectionSortStep,
+  runFullSelectionSort,
+} from "./algorithms/SelectionSort";
 
 const Home = ({ initialNodes }) => {
   const [gridOffset, setGridOffset] = useState({ x: 0, y: 0 });
@@ -45,6 +49,12 @@ const Home = ({ initialNodes }) => {
   const [addInputError, setAddInputError] = useState("");
   const [animationSpeed, setAnimationSpeed] = useState(1);
   const [nodeOverDelete, setNodeOverDelete] = useState(null);
+  const [selectionStep, setSelectionStep] = useState({
+    currentIndex: 0,
+    scanIndex: 0,
+    minIndex: 0,
+  });
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const handleLinearSearch = () => {
     setSearchValue("");
@@ -118,6 +128,60 @@ const Home = ({ initialNodes }) => {
 
     if (!enableStepping) {
       await runFullBubbleSort({
+        nodes: orderedNodes,
+        d3,
+        setNodes,
+        setIsSorting,
+        setShowNextButton,
+        setCurrentOperation,
+        startX,
+        centerY,
+        spacing,
+        animationSpeed,
+      });
+    }
+  };
+
+  const handleSelectionSort = async () => {
+    const centerY = window.innerHeight / 2;
+    const nodeWidth = 44;
+    const spacing = nodeWidth * 2;
+    const totalWidth = (nodes.length - 1) * spacing;
+    const startX = (window.innerWidth - totalWidth) / 2;
+
+    // Sort nodes by current x position to maintain visual order
+    const orderedNodes = [...nodes].sort((a, b) => a.x - b.x);
+
+    // Center all nodes first
+    await Promise.all(
+      orderedNodes.map((node, index) => {
+        const newX = startX + index * spacing;
+
+        return new Promise((resolve) => {
+          d3.select(`[data-id="${node.id}"]`)
+            .transition()
+            .duration(1000 / animationSpeed)
+            .style("transform", `translate(${newX}px, ${centerY}px)`)
+            .on("end", () => {
+              setNodes((prev) => {
+                const updated = prev.map((n) =>
+                  n.id === node.id ? { ...n, x: newX, y: centerY } : n
+                );
+                return updated.sort((a, b) => a.x - b.x);
+              });
+              resolve();
+            });
+        });
+      })
+    );
+
+    setIsSorting(true);
+    setSelectionStep({ currentIndex: 0, scanIndex: 0, minIndex: 0 });
+    setShowNextButton(true);
+    setCurrentOperation("sort");
+
+    if (!enableStepping) {
+      await runFullSelectionSort({
         nodes: orderedNodes,
         d3,
         setNodes,
@@ -206,7 +270,7 @@ const Home = ({ initialNodes }) => {
     ],
     sort: [
       { label: "Back", onClick: () => setCurrentButtons("main") },
-      { label: "Selection Sort", onClick: () => {} },
+      { label: "Selection Sort", onClick: handleSelectionSort },
       { label: "Bubble Sort", onClick: handleBubbleSort },
       { label: "Insertion Sort", onClick: () => {} },
     ],
@@ -330,53 +394,77 @@ const Home = ({ initialNodes }) => {
   };
 
   const handleNextStep = async () => {
-    if (currentOperation === "search") {
-      if (searchType === "binary") {
-        await handleBinarySearchStep({
-          sortedNodes,
-          binaryRange,
-          targetValue,
-          previousNode,
-          d3,
-          setPreviousNode,
-          setBinaryRange,
-          setShowNextButton,
-          setIsSearching,
-        });
-      } else if (searchType === "linear") {
-        await handleLinearSearchStep({
-          currentStep,
-          sortedNodes,
-          targetValue,
-          previousNode,
-          d3,
-          setPreviousNode,
-          setShowNextButton,
-          setIsSearching,
-          setCurrentStep,
-        });
-      }
-    } else if (currentOperation === "sort" && isSorting) {
-      const centerY = window.innerHeight / 2;
-      const nodeWidth = 44;
-      const spacing = nodeWidth * 2;
-      const totalWidth = (nodes.length - 1) * spacing;
-      const startX = (window.innerWidth - totalWidth) / 2;
+    if (isAnimating) return;
+    setIsAnimating(true);
 
-      await handleBubbleSortStep({
-        bubbleStep,
-        nodes: [...nodes].sort((a, b) => a.x - b.x),
-        d3,
-        setNodes,
-        setBubbleStep,
-        setIsSorting,
-        setShowNextButton,
-        setCurrentOperation,
-        startX,
-        centerY,
-        spacing,
-        animationSpeed,
-      });
+    try {
+      if (currentOperation === "search") {
+        if (searchType === "binary") {
+          await handleBinarySearchStep({
+            sortedNodes,
+            binaryRange,
+            targetValue,
+            previousNode,
+            d3,
+            setPreviousNode,
+            setBinaryRange,
+            setShowNextButton,
+            setIsSearching,
+          });
+        } else if (searchType === "linear") {
+          await handleLinearSearchStep({
+            currentStep,
+            sortedNodes,
+            targetValue,
+            previousNode,
+            d3,
+            setPreviousNode,
+            setShowNextButton,
+            setIsSearching,
+            setCurrentStep,
+          });
+        }
+      } else if (currentOperation === "sort" && isSorting) {
+        const centerY = window.innerHeight / 2;
+        const nodeWidth = 44;
+        const spacing = nodeWidth * 2;
+        const totalWidth = (nodes.length - 1) * spacing;
+        const startX = (window.innerWidth - totalWidth) / 2;
+
+        if (currentOperation === "bubble") {
+          await handleBubbleSortStep({
+            bubbleStep,
+            nodes: [...nodes].sort((a, b) => a.x - b.x),
+            d3,
+            setNodes,
+            setBubbleStep,
+            setIsSorting,
+            setShowNextButton,
+            setCurrentOperation,
+            startX,
+            centerY,
+            spacing,
+            animationSpeed,
+          });
+        } else {
+          await handleSelectionSortStep({
+            selectionStep,
+            nodes: [...nodes].sort((a, b) => a.x - b.x),
+            d3,
+            setNodes,
+            setSelectionStep,
+            setIsSorting,
+            setShowNextButton,
+            setCurrentOperation,
+            startX,
+            centerY,
+            spacing,
+            animationSpeed,
+          });
+        }
+      }
+    } finally {
+      setIsAnimating(false);
     }
   };
 
